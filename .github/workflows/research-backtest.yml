@@ -1,0 +1,46 @@
+name: Historical research backtest (manual only)
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Historical start date (YYYY-MM-DD)"
+        required: true
+        default: "2022-01-01"
+      end_date:
+        description: "Exclusive historical end date (YYYY-MM-DD; no future dates)"
+        required: true
+        default: "2026-10-17"
+      holdout_start:
+        description: "Descriptive holdout date (YYYY-MM-DD)"
+        required: true
+        default: "2025-01-01"
+permissions:
+  contents: read
+jobs:
+  historical-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install market-data research dependencies
+        run: python -m pip install -e '.[market-data]'
+      - name: Historical download (explicit user action only)
+        env:
+          HIST_START: ${{ inputs.start_date }}
+          HIST_END: ${{ inputs.end_date }}
+        run: |
+          fleet download-history --start "$HIST_START" --end "$HIST_END" --out-dir datasets/runner
+      - name: Offline backtest (no broker connected)
+        env:
+          HOLDOUT: ${{ inputs.holdout_start }}
+        run: |
+          fleet backtest --csv datasets/runner/prices.csv --manifest datasets/runner/manifest.json --holdout-start "$HOLDOUT" --out output/historical-report.json
+      - name: Upload report only (do not redistribute downloaded market price dataset)
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-research-report
+          path: output/historical-report.json
+          retention-days: 7

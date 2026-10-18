@@ -25,3 +25,9 @@ This is a software-development repository, NOT a broker execution channel.
 - Reviewer confirms new strategy features use only information available at the decision time.
 - Independent reviewer checks any risk, broker or authorization changes.
 - PR describes risk model delta, test evidence, rollback path and data licensing.
+
+## Historical research data (v0.2)
+- `download-history` is the *only* intentionally networked research-download command; NEVER add network behavior to `run-demo`, `backtest`, test cases or CI.
+- Hash and validate local snapshots before simulating; fail on unavailable or non-EUR price feeds.
+- Do not treat dividend-ignorant/raw OHLC strategies as research-grade alpha; benchmark and full cost modeling must be reviewed before any brokerage integration.
+- Do not let LLMs expand the allowlist or invoke a broker.

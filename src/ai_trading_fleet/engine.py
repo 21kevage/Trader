@@ -8,7 +8,11 @@ from .risk import RiskEngine, RiskPolicy
 from .execution import SimulatedBroker
 
 class TradingFleet:
-    def __init__(self, policy: RiskPolicy | None = None, starting_cash: float = 1000.0):
+    def __init__(self, policy: RiskPolicy | None = None, starting_cash: float = 1000.0,
+                 data_mode: str = "OFFLINE_SYNTHETIC_SIMULATION_ONLY"):
+        if data_mode not in {"OFFLINE_SYNTHETIC_SIMULATION_ONLY", "OFFLINE_HISTORICAL_BACKTEST_ONLY"}:
+            raise ValueError("Unrecognized simulation mode")
+        self.data_mode = data_mode
         self.policy = policy or RiskPolicy()
         if starting_cash <= 0:
             raise ValueError("Starting cash must be positive")
@@ -117,8 +121,8 @@ class TradingFleet:
             peak = max(peak, point["equity"])
             drawdowns.append((peak - point["equity"]) / peak if peak else 0)
         return {
-            "mode": "OFFLINE_SYNTHETIC_SIMULATION_ONLY",
-            "note": "Not an AI model, live broker, market forecast, or validated strategy.",
+            "mode": self.data_mode,
+            "note": "Research simulation, not AI, live broker, a forecast or a validated strategy. Price-only, excludes corporate actions and dividends.",
             "initial_equity": first_equity,
             "final_equity": round(p.last_equity, 2),
             "return_pct": round((p.last_equity / first_equity - 1) * 100, 3),

@@ -1,8 +1,8 @@
-# AI Trading Fleet · MVP v0.1
+# AI Trading Fleet · MVP v0.2
 
-An offline, **deterministic and synthetic** research prototype for a future multi-agent trading system inspired by Firstmate's crew-supervision principle.
+An offline, **offline-only** research prototype with synthetic demo and opt-in historical research data for a future multi-agent trading system inspired by Firstmate's crew-supervision principle.
 
-> **NO REAL OR IBKR PAPER TRADING.** This build has no live data, LLM API, broker API, credentials or order-submission endpoints. Demo symbols/prices are synthetic. Any shown performance is meaningless for investment decisions.
+> **NO REAL OR IBKR PAPER TRADING.** This build has no streaming quotes, LLM API, broker API, credentials or order-submission endpoints. The demo is synthetic. The historical mode uses a user-downloaded Yahoo Finance research snapshot; neither mode is a validated investment strategy.
 
 **Default simulated starting capital: 1,000 EUR.** At this scale, 20% per position = 200 EUR, 60% maximum aggregate exposure = 600 EUR, planned trade risk 0.25% = 2.50 EUR; daily/weekly/drawdown circuit breakers at 10/25/50 EUR initially. Demo fees may outweigh gains.
 
@@ -27,6 +27,28 @@ uvicorn ai_trading_fleet.api:app --host 127.0.0.1 --port 8765
 
 CLI generates deterministic synthetic demonstration data when `data/demo_prices.csv` is absent (or reads the local CSV when supplied) and writes `output/report.json` containing every assessment, risk rejection, queued order and simulated fill. Always verify the report's `mode` field.
 
+## Offline backtest of *real* historical prices (research-only)
+
+The data download is **explicit** and never runs in GitHub CI. Network access plus `yfinance` are required on your machine; this environment cannot fetch vendor data directly.
+
+```bash
+pip install -e '.[market-data]'
+fleet download-history --start 2022-01-01 --end 2026-10-17 --out-dir datasets/research-20261017
+fleet backtest --csv datasets/research-20261017/prices.csv \
+  --manifest datasets/research-20261017/manifest.json \
+  --holdout-start 2025-01-01 --out output/historical-report.json
+```
+
+On Windows PowerShell, enter the final `fleet backtest` command on one line, or use PowerShell's own continuation character. `--end` is **exclusive**: this example includes market sessions up to 2026-10-16. Do not assume that these price histories are freely redistributable; snapshots are gitignored.
+
+- Research allowlist: Xetra ticker `EUNL.DE` (MSCI World, ISIN IE00B4L5Y983) and `IS3N.DE` (EM IMI, ISIN IE00BKM4GZ66), both *EUR-traded* shares. Instruments are not automatically cleared for live brokerage execution.
+- Downloads use raw/unadjusted daily OHLC (`auto_adjust=False`) and verify provider currency, completeness, gaps, OHLC bounds and major discontinuities. Data and metadata are SHA256-linked. A hash is for *accidental corruption detection*, not signed vendor provenance.
+- The 15 bps spread field is an **assumption**, not a real quote. Fee default is EUR 1.25 per simulated fill; slippage assumption is 5 bps. Dividend distributions, split adjustments, tax, trading venue opening auctions and funding rates are NOT modeled: price-only research outcomes can be misleading. Any split/anomaly flagged requires a human review of the dataset.
+- The portfolio is limited to EUR 1,000 in the scenario, with a EUR 2.50 planned per-trade stop-risk budget. For high-priced ETFs this can mean **zero trades**, which is an acceptable research result.
+- Reports compare simulation against all-cash (0% price return) and each ETF's approximate next-session-open buy-and-hold (not risk matched). Optional holdout is descriptive; no hyperparameter optimization or walk-forward calibration has been built yet.
+- Yahoo Finance/yfinance provides research/personal use data subject to applicable provider terms, not a licensed execution-quality dataset. Failures abort the download; no synthetic fallback during `backtest`.
+
+
 ## Structure
 
 ```text
@@ -37,7 +59,9 @@ src/ai_trading_fleet/
   risk.py         hard-coded risk checks and order sizing
   execution.py    offline-only broker simulator, no network
   engine.py       end-of-day signals -> NEXT open only; audit trail
-  cli.py          offline demo CLI
+  marketdata.py   opt-in yfinance historical download + immutable snapshot SHA checks
+  evaluation.py   cash and buy-and-hold baselines + descriptive holdout
+  cli.py          offline demo, download-history, backtest CLI
   api.py          optional read-only local report UI
 tests/             standard-library unittest safety/integrity checks
 config/            proposed market universe, NOT an order whitelist for a real broker
@@ -49,7 +73,7 @@ docs/              architecture, security policy, phased roadmap
 ## Key design decisions
 
 - Firstmate is a CODING assistant orchestration distribution; do not run it as the live trading core.
-- TradingAgents is a separate LLM research framework; evaluate as advisory adapter in Sprint 2. Neither project is bundled.
+- TradingAgents is a separate LLM research framework; evaluate as advisory adapter in Sprint 2 after real-data benchmarks. Neither project is bundled.
 - Live instrument selection must be human-approved whitelist at broker contract/ISIN/venue level.
 - Risk Engine may reject ALL buys when missing reliable data; no LLM can override it.
 - Demo uses next-session opens, NOT the same candle's close; more robust fill handling remains necessary for real paper trading.
@@ -64,3 +88,7 @@ docs/              architecture, security policy, phased roadmap
 - https://www.interactivebrokers.com/docs/tws-api/doc/notes-limitations/tws-api-limitations
 
 See `docs/ARCHITECTURE.md`, `docs/RISK_AND_SECURITY.md`, `docs/ROADMAP.md`.
+
+### From your phone via GitHub (manual action)
+
+In **Actions** select **Historical research backtest (manual only)** → **Run workflow**. Set date inputs (the end date is exclusive) and run. Download the `historical-research-report` artifact from that workflow run once successful. If Yahoo blocks GitHub-hosted runners, the workflow will fail closed; run the local CLI instead. No licensed raw market dataset is uploaded as a GitHub artifact, and no broker credentials are supported. This action is intentionally **never scheduled**.

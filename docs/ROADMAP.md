@@ -4,7 +4,11 @@
 - Repo scaffold with Python package, synthetic deterministic daily prices, separate role modules, risk gate, next-session simulated limit orders, audit JSON, optional read-only dashboard, unittest and GitHub CI.
 - It DOES NOT contain a live-data provider, LLM calls, TradingAgents import, cloud deployment or broker API implementation.
 
-## Sprint 1: research-grade backtesting (est. 1-2 weeks of engineering; not a delivery promise)
+## Sprint 1: verified historical research-data MVP (v0.2 implemented; NOT fully research-grade)
+- Opt-in yfinance daily OHLC data snapshots with EUR checks, dataset hashing and offline-only backtest.
+- Descriptive holdout; cash and next-session buy-and-hold price-only baseline.
+
+## Remaining Sprint 1: more rigorous backtesting
 - Choose 3-6 eligible EUR-listed UCITS ETFs, verify exact ISIN/venue and historical price-data rights.
 - Swap synthetic CSV for adjusted point-in-time prices incl. corporate actions, markets closed/holiday calendar, valid symbol mapping, exchange timezone.
 - Trade cost model: commission min/fixed vs tiered, spread, FX, slippage, market impact; pass independent data validation.
