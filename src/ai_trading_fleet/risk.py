@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from math import floor, isfinite
 from .models import Bar, Portfolio, Proposal
+from .economics import estimate_round_trip
 
 @dataclass(frozen=True)
 class RiskPolicy:
@@ -18,12 +19,37 @@ class RiskPolicy:
     max_trades_per_day: int = 2
     max_open_positions: int = 3
     assumed_fee: float = 1.25
+    assumed_slippage_bps: float = 5.0
+    max_estimated_round_trip_cost_fraction: float = 0.015
     cooldown_days: int = 5
     kill_switch: bool = False
 
 class RiskEngine:
     def __init__(self, policy: RiskPolicy):
         self.policy = policy
+        # Latching research-only circuit breaker. No automatic restart after recovery.
+        self.drawdown_latched = False
+        self.drawdown_latched_on: date | None = None
+
+    def observe_drawdown(self, equity: float, peak_equity: float, asof: date) -> bool:
+        """Return True exactly once when a drawdown halt first triggers."""
+        if self.drawdown_latched:
+            return False
+        if peak_equity > 0 and (peak_equity - equity) / peak_equity >= self.policy.equity_drawdown_circuit_breaker:
+            self.drawdown_latched = True
+            self.drawdown_latched_on = asof
+            return True
+        return False
+
+    def check_economics(self, price: float, quantity: int, spread_bps: float) -> tuple[bool, str]:
+        c = estimate_round_trip(price, quantity, fee=self.policy.assumed_fee,
+                                spread_bps=spread_bps,
+                                slippage_bps=self.policy.assumed_slippage_bps)
+        threshold = self.policy.max_estimated_round_trip_cost_fraction
+        if c.fraction > threshold:
+            return False, (f"Estimated round-trip costs EUR {c.total:.2f} ({c.fraction:.2%}) "
+                           f"exceed policy {threshold:.2%} of notional")
+        return True, f"Estimated round-trip costs EUR {c.total:.2f} ({c.fraction:.2%})"
 
     def size_buy(self, price: float, equity: float, cash: float, stop_pct: float) -> int:
         if not all(isfinite(v) and v > 0 for v in (price, equity, stop_pct)) or cash <= 0:
@@ -52,15 +78,15 @@ class RiskEngine:
             return (True, "Exit permitted") if pos and pos.quantity >= proposal.quantity else (False, "No position")
         if p.kill_switch:
             return False, "KILL SWITCH"
-        if bar.volume <= 0:
-            return False, "Zero reported volume; buy blocked"
+        if self.drawdown_latched:
+            return False, "Drawdown circuit breaker LATCHED; manual review required"
         if portfolio.traded_date_count.get(asof, 0) >= p.max_trades_per_day:
             return False, "Max daily trades"
         equity = portfolio.equity(marks)
         if equity <= 0:
             return False, "No equity"
-        if (portfolio.peak_equity - equity) / portfolio.peak_equity >= p.equity_drawdown_circuit_breaker:
-            return False, "Max drawdown circuit breaker"
+        if self.observe_drawdown(equity, portfolio.peak_equity, asof):
+            return False, "Drawdown circuit breaker LATCHED; manual review required"
         if portfolio.day_start_equity > 0 and ((portfolio.day_start_equity - equity) /
             portfolio.day_start_equity >= p.daily_loss_circuit_breaker):
             return False, "Daily loss circuit breaker"
@@ -85,14 +111,21 @@ class RiskEngine:
                     for sym, position in portfolio.positions.items())
         if gross + notional > equity * p.max_gross_exposure_fraction:
             return False, "Gross exposure exceeded"
-        return True, "Risk checks passed"
+        economics_ok, economics_reason = self.check_economics(bar.close, proposal.quantity, bar.spread_bps)
+        if not economics_ok:
+            return False, economics_reason
+        return True, f"Risk checks passed; {economics_reason}"
+
 
     def check_execution_buy(self, proposal: Proposal, actual_fill_price: float,
-                            portfolio: Portfolio, marks: dict[str, float], execution_date: date) -> tuple[bool, str]:
+                            portfolio: Portfolio, marks: dict[str, float], execution_date: date,
+                            execution_spread_bps: float = 15.0) -> tuple[bool, str]:
         """Independent order-time recheck; gaps cannot bypass notional/exposure cap."""
         p = self.policy
         if p.kill_switch:
             return False, "KILL SWITCH"
+        if self.drawdown_latched:
+            return False, "Drawdown circuit breaker LATCHED; manual review required"
         equity = portfolio.equity(marks)
         if equity <= 0:
             return False, "No equity"
@@ -108,10 +141,14 @@ class RiskEngine:
             return False, "Gap exceeds gross exposure cap"
         if portfolio.traded_date_count.get(execution_date, 0) >= p.max_trades_per_day:
             return False, "Trade limit"
-        if portfolio.peak_equity > 0 and (portfolio.peak_equity - equity) / portfolio.peak_equity >= p.equity_drawdown_circuit_breaker:
-            return False, "Drawdown circuit breaker at execution"
+        if self.observe_drawdown(equity, portfolio.peak_equity, execution_date):
+            return False, "Drawdown circuit breaker LATCHED at execution"
         if portfolio.day_start_equity > 0 and (portfolio.day_start_equity - equity) / portfolio.day_start_equity >= p.daily_loss_circuit_breaker:
             return False, "Daily loss circuit breaker at execution"
         if portfolio.week_start_equity > 0 and (portfolio.week_start_equity - equity) / portfolio.week_start_equity >= p.weekly_loss_circuit_breaker:
             return False, "Weekly loss circuit breaker at execution"
+        economics_ok, economics_reason = self.check_economics(actual_fill_price, proposal.quantity, execution_spread_bps)
+        if not economics_ok:
+            return False, economics_reason
         return True, "Execution checks passed"
+
