@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-trading-fleet"
+version = "0.1.0"
+description = "Fail-closed multi-role trading research and offline paper simulation MVP"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+web = ["fastapi>=0.110,<1", "uvicorn>=0.27,<1"]
+
+[project.scripts]
+fleet = "ai_trading_fleet.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

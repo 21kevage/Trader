@@ -1,0 +1,11 @@
+{
+  "mode": "research_only",
+  "market_selection": "only instruments explicitly allowlisted after brokerage eligibility and data review",
+  "candidate_categories": [
+    "EU-domiciled broad equity UCITS ETF in EUR",
+    "EU-domiciled liquid bond UCITS ETF in EUR",
+    "EUR cash / money-market ETF for comparison"
+  ],
+  "excluded": ["CFDs", "futures", "options", "leveraged ETFs", "short selling", "memecoins", "illiquid shares"],
+  "demo_symbols_are_not_tradeable": ["DEMO_WORLD", "DEMO_BONDS", "DEMO_CASH"]
+}
