@@ -12,6 +12,9 @@ def _write_report(report: dict, out: Path):
     out.parent.mkdir(exist_ok=True, parents=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     summary = {k: v for k, v in report.items() if k not in {"curve", "fills", "audits"}}
+    if "runs" in summary:
+        summary["runs"] = [{k: v for k, v in run.items() if k not in {"curve", "fills"}}
+                           for run in summary["runs"]]
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     print(f"Full offline report written to {out}")
 
@@ -33,6 +36,11 @@ def main(argv: list[str] | None = None):
     historical.add_argument("--manifest", required=True, type=Path)
     historical.add_argument("--out", type=Path, default=Path("output/historical-report.json"))
     historical.add_argument("--holdout-start", type=date.fromisoformat)
+    research = sub.add_parser("compare-research", help="v0.4 offline scenario grid, NO BROKER")
+    research.add_argument("--csv", required=True, type=Path)
+    research.add_argument("--manifest", required=True, type=Path)
+    research.add_argument("--out", type=Path, default=Path("output/research-v04.json"))
+    research.add_argument("--holdout-start", type=date.fromisoformat)
     args = parser.parse_args(argv)
 
     if args.command == "run-demo":
@@ -43,6 +51,14 @@ def main(argv: list[str] | None = None):
         from .marketdata import fetch_yahoo_snapshot
         csv_file, manifest_file = fetch_yahoo_snapshot(args.start, args.end, args.out_dir)
         print(f"Saved research snapshot: {csv_file} | {manifest_file}")
+    elif args.command == "compare-research":
+        from .marketdata import read_snapshot
+        from .research_lab import compare
+        dataset, manifest = read_snapshot(args.csv, args.manifest)
+        report = compare(dataset, capital=1000.0, holdout_start=args.holdout_start)
+        report["snapshot_sha256"] = manifest["sha256"]
+        report["data_source"] = manifest["source"]
+        _write_report(report, args.out)
     elif args.command == "backtest":
         from .marketdata import RESEARCH_UNIVERSE, read_snapshot
         from .evaluation import buy_and_hold, capped_buy_and_hold, summarize_holdout
