@@ -68,6 +68,8 @@ class TradingFleet:
             marks.update({s: b.close for s, b in bar_map.items()})
             equity = p.equity(marks)
             p.peak_equity = max(p.peak_equity, equity)
+            if self.risk.observe_drawdown(equity, p.peak_equity, today):
+                self.log(today, "CircuitBreaker", "TRIP", "Drawdown threshold crossed; latch persists until offline run reset")
             self.curve.append({"date": today.isoformat(), "equity": round(equity, 2),
                                "cash": round(p.cash, 2)})
             p.previous_equity = equity
@@ -80,8 +82,7 @@ class TradingFleet:
                     continue
                 bar = bar_map[symbol]
                 if bar.volume <= 0:
-                    self.log(today, "MarketData", "SKIP",
-                             f"{symbol}: zero reported volume; no trade signal")
+                    self.log(today, "MarketData", "SKIP", f"{symbol}: zero volume")
                     continue
                 assessment = self.quant.assess(symbol, self.histories[symbol])
                 if assessment is None:
@@ -144,4 +145,13 @@ class TradingFleet:
                         "message": a.message} for a in self.audits],
             "unexecuted_orders": [x.order_id for x in self.pending],
             "news_status": self.news.status(),
+            "risk_halt": {"drawdown_latched": self.risk.drawdown_latched,
+                          "latched_on": self.risk.drawdown_latched_on.isoformat() if self.risk.drawdown_latched_on else None,
+                          "no_automatic_restart": True},
+            "expected_round_trip_cost_ceiling_pct": self.policy.max_estimated_round_trip_cost_fraction * 100,
+            "assumed_commission_per_fill": self.policy.assumed_fee,
+            "assumed_slippage_bps_per_fill": self.policy.assumed_slippage_bps,
+            "blocked_buy_proposals_for_costs": sum(a.kind == "REJECT" and "Estimated round-trip costs" in a.message
+                                                   for a in self.audits),
+
         }

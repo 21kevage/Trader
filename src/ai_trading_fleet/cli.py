@@ -45,7 +45,7 @@ def main(argv: list[str] | None = None):
         print(f"Saved research snapshot: {csv_file} | {manifest_file}")
     elif args.command == "backtest":
         from .marketdata import RESEARCH_UNIVERSE, read_snapshot
-        from .evaluation import buy_and_hold, summarize_holdout
+        from .evaluation import buy_and_hold, capped_buy_and_hold, summarize_holdout
         dataset, manifest = read_snapshot(args.csv, args.manifest)
         policy = RiskPolicy(permitted_symbols=frozenset(RESEARCH_UNIVERSE))
         report = TradingFleet(policy, data_mode="OFFLINE_HISTORICAL_BACKTEST_ONLY").run(dataset)
@@ -54,6 +54,9 @@ def main(argv: list[str] | None = None):
         report["price_basis"] = manifest["quotes"]
         report["zero_volume_rows"] = manifest.get("zero_volume_rows", {})
         report["comparisons"] = {sym: buy_and_hold(dataset, sym) for sym in RESEARCH_UNIVERSE}
+        report["capped_comparisons"] = {sym: capped_buy_and_hold(dataset, sym,
+            fee=policy.assumed_fee, slippage_bps=policy.assumed_slippage_bps)
+            for sym in RESEARCH_UNIVERSE}
         report["cash_baseline"] = {"initial_equity": 1000.0, "final_equity": 1000.0,
                                    "return_pct": 0.0, "ignores_cash_interest": True}
         if args.holdout_start:

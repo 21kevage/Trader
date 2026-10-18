@@ -1,4 +1,4 @@
-# AI Trading Fleet · MVP v0.2
+# AI Trading Fleet · MVP v0.3
 
 An offline, **offline-only** research prototype with synthetic demo and opt-in historical research data for a future multi-agent trading system inspired by Firstmate's crew-supervision principle.
 
@@ -92,3 +92,15 @@ See `docs/ARCHITECTURE.md`, `docs/RISK_AND_SECURITY.md`, `docs/ROADMAP.md`.
 ### From your phone via GitHub (manual action)
 
 In **Actions** select **Historical research backtest (manual only)** → **Run workflow**. Set date inputs (the end date is exclusive) and run. Download the `historical-research-report` artifact from that workflow run once successful. If Yahoo blocks GitHub-hosted runners, the workflow will fail closed; run the local CLI instead. No licensed raw market dataset is uploaded as a GitHub artifact, and no broker credentials are supported. This action is intentionally **never scheduled**.
+
+## v0.3 – Fee-aware research (branch proposal)
+
+This version remains offline historical simulation. **No actual trading, account credentials, LLM calls or broker APIs**. Starting capital remains EUR 1,000.
+
+- Estimated two-way commissions and assumed bid/ask spread plus slippage are checked before allowing new purchases. Configured maximum estimated round-trip cost is 1.5% of proposed notional. At the existing 0.25%-NAV stop-distance risk per position, this may deliberately lead to **zero trades** with a EUR 1,000 account.
+- Simulated executions include half the assumed spread *in addition to* slippage. Quotes are research OHLC prices; the 15-bps spread is a fixed assumption rather than measured historical bid/ask quotes.
+- The offline 5% portfolio peak-to-current drawdown circuit breaker latches new purchases OFF for the remaining backtest; exits remain allowed. Resuming an actual deployed system will require independent approval and durable state management.
+- Backtest reports add `capped_comparisons` (up to 20% initial investment, remainder cash, no stop, assumed entry costs), estimated trade cost limit, blocked candidate buy count and halt status.
+- These benchmarks are **not risk-matched** and are price-only (without corporate actions/dividends/tax/real executable spreads); a good backtest is not proof of profitability.
+
+Run the existing manual `Historical research backtest` GitHub Action to see changes in `historical-research-report`; offline unit tests are run by CI. See `docs/V0_3_DECISIONS.md`.

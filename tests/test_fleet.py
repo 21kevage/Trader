@@ -64,9 +64,10 @@ class RiskTests(unittest.TestCase):
         proposal = Proposal("DEMO_WORLD", "BUY", 1, D, "x")
         order = PendingOrder(proposal, "id1", 110)
         future = Bar(D + timedelta(days=1), "DEMO_WORLD", 100, 102, 99, 101, 10000)
-        fill, _ = broker.execute(order, future, self.p, self.risk, {"DEMO_WORLD": 100})
+        risk = RiskEngine(RiskPolicy(max_estimated_round_trip_cost_fraction=0.10))
+        fill, _ = broker.execute(order, future, self.p, risk, {"DEMO_WORLD": 100})
         self.assertIsNotNone(fill)
-        duplicate, reason = broker.execute(order, future, self.p, self.risk, {"DEMO_WORLD": 100})
+        duplicate, reason = broker.execute(order, future, self.p, risk, {"DEMO_WORLD": 100})
         self.assertIsNone(duplicate)
         self.assertIn("Duplicate", reason)
 
