@@ -52,6 +52,7 @@ def main(argv: list[str] | None = None):
         report["snapshot_sha256"] = manifest["sha256"]
         report["source"] = manifest["source"]
         report["price_basis"] = manifest["quotes"]
+        report["zero_volume_rows"] = manifest.get("zero_volume_rows", {})
         report["comparisons"] = {sym: buy_and_hold(dataset, sym) for sym in RESEARCH_UNIVERSE}
         report["cash_baseline"] = {"initial_equity": 1000.0, "final_equity": 1000.0,
                                    "return_pct": 0.0, "ignores_cash_interest": True}

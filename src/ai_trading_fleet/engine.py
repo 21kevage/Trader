@@ -79,6 +79,10 @@ class TradingFleet:
                 if symbol not in bar_map:
                     continue
                 bar = bar_map[symbol]
+                if bar.volume <= 0:
+                    self.log(today, "MarketData", "SKIP",
+                             f"{symbol}: zero reported volume; no trade signal")
+                    continue
                 assessment = self.quant.assess(symbol, self.histories[symbol])
                 if assessment is None:
                     continue

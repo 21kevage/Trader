@@ -52,6 +52,8 @@ class RiskEngine:
             return (True, "Exit permitted") if pos and pos.quantity >= proposal.quantity else (False, "No position")
         if p.kill_switch:
             return False, "KILL SWITCH"
+        if bar.volume <= 0:
+            return False, "Zero reported volume; buy blocked"
         if portfolio.traded_date_count.get(asof, 0) >= p.max_trades_per_day:
             return False, "Max daily trades"
         equity = portfolio.equity(marks)

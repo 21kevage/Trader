@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 from .models import Bar
 
-def load_csv(path: str | Path, allowed: set[str]) -> dict[date, dict[str, Bar]]:
+def load_csv(path: str | Path, allowed: set[str], *, allow_zero_volume: bool = False) -> dict[date, dict[str, Bar]]:
     result: dict[date, dict[str, Bar]] = defaultdict(dict)
     with Path(path).open(newline="", encoding="utf-8") as file:
         for row in csv.DictReader(file):
@@ -19,8 +19,9 @@ def load_csv(path: str | Path, allowed: set[str]) -> dict[date, dict[str, Bar]]:
                 low=float(row["low"]), close=float(row["close"]),
                 volume=int(row["volume"]), spread_bps=float(row.get("spread_bps", 15)),
             )
-            if any(not isfinite(v) or v <= 0 for v in (bar.open, bar.high, bar.low, bar.close, float(bar.volume))):
-                raise ValueError("Invalid zero/negative/nonfinite price or volume")
+            if (any(not isfinite(v) or v <= 0 for v in (bar.open, bar.high, bar.low, bar.close))
+                or bar.volume < 0 or (bar.volume == 0 and not allow_zero_volume)):
+                raise ValueError("Invalid price or volume")
             if not isfinite(bar.spread_bps) or bar.spread_bps < 0:
                 raise ValueError("Invalid spread")
             if not bar.low <= min(bar.open, bar.close) <= max(bar.open, bar.close) <= bar.high:

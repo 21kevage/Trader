@@ -10,7 +10,9 @@ def buy_and_hold(data: dict[date, dict[str, Bar]], symbol: str,
     bars = [daily[symbol] for day, daily in sorted(data.items()) if symbol in daily]
     if len(bars) < 2:
         raise ValueError("Insufficient sessions for baseline")
-    execution = bars[1]   # avoids buying at the same close used to pick series
+    execution = next((bar for bar in bars[1:] if bar.volume > 0), None)
+    if execution is None:
+        raise ValueError("No tradable session with reported volume for buy-and-hold")
     qty = int(max(0, (capital - fee) // execution.open))
     invested = qty * execution.open + (fee if qty else 0)
     ending = capital - invested + qty * bars[-1].close

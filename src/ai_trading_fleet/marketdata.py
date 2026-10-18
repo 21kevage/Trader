@@ -44,8 +44,10 @@ def _validate_rows(rows: list[dict], *, minimum_bars: int = 90) -> None:
         if not (low <= opening <= high and low <= closing <= high):
             raise MarketDataError("Invalid OHLC ordering")
         vol = float(row["volume"])
-        if not isfinite(vol) or vol <= 0 or int(vol) != vol:
-            raise MarketDataError("Zero, missing or fractional volume")
+        if not isfinite(vol) or vol < 0 or int(vol) != vol:
+            raise MarketDataError("Missing, negative or fractional volume")
+        # A provider may publish a valid OHLC quote with zero reported volume.
+        # Preserve the fact, but never interpret it as evidence of liquidity.
         per_symbol[symbol].append(row)
     for ticker, ticker_rows in per_symbol.items():
         if len(ticker_rows) < minimum_bars:
@@ -98,6 +100,8 @@ def write_snapshot(rows: list[dict], destination: str | Path, *, start: date,
         "currency": "EUR", "quotes": "unadjusted OHLC, price-only; no dividend or split accounting",
         "assumed_spread_bps": 15, "symbols": RESEARCH_UNIVERSE,
         "rows": len(rows), "sha256": digest,
+        "zero_volume_rows": {ticker: sum(row["symbol"] == ticker and int(row["volume"]) == 0
+                                         for row in rows) for ticker in RESEARCH_UNIVERSE},
     }
     # Create manifest only after validated CSV has been persisted.
     csv_path.write_bytes(raw)
@@ -127,7 +131,11 @@ def read_snapshot(csv_path: str | Path, manifest_path: str | Path):
     start, end = date.fromisoformat(manifest["start_inclusive"]), date.fromisoformat(manifest["end_exclusive"])
     if any(not start <= date.fromisoformat(row["date"]) < end for row in rows):
         raise MarketDataError("Out-of-range bar in snapshot")
-    return load_csv(csv_path, set(RESEARCH_UNIVERSE)), manifest
+    zero_counts = {ticker: sum(row["symbol"] == ticker and int(row["volume"]) == 0
+                               for row in rows) for ticker in RESEARCH_UNIVERSE}
+    if manifest.get("zero_volume_rows", zero_counts) != zero_counts:
+        raise MarketDataError("Zero-volume metadata does not match snapshot")
+    return load_csv(csv_path, set(RESEARCH_UNIVERSE), allow_zero_volume=True), manifest
 
 
 def fetch_yahoo_snapshot(start: date, end: date, out_dir: str | Path):
