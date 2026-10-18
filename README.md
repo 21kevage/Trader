@@ -1,4 +1,4 @@
-# AI Trading Fleet · MVP v0.3
+# AI Trading Fleet · MVP v0.4
 
 An offline, **offline-only** research prototype with synthetic demo and opt-in historical research data for a future multi-agent trading system inspired by Firstmate's crew-supervision principle.
 
@@ -104,3 +104,11 @@ This version remains offline historical simulation. **No actual trading, account
 - These benchmarks are **not risk-matched** and are price-only (without corporate actions/dividends/tax/real executable spreads); a good backtest is not proof of profitability.
 
 Run the existing manual `Historical research backtest` GitHub Action to see changes in `historical-research-report`; offline unit tests are run by CI. See `docs/V0_3_DECISIONS.md`.
+
+## v0.4 – Offline research comparison
+
+**Still NO LLM agent, no broker API, no paper brokerage or live orders.** This separate research module runs three fixed experimental strategies against four *assumed* cost and whole/fractional share execution scenarios using the same EUR 1,000 simulated capital and existing 0.25%-of-equity planned stop-risk budget. Fractional shares and discounted/zero commissions are **hypothetical sensitivity experiments**, not verified broker capabilities or offers. The v0.3 backtest remains available unchanged.
+
+Run `fleet compare-research --csv datasets/research/prices.csv --manifest datasets/research/manifest.json --holdout-start 2025-01-01 --out output/research-v04.json` on a previously downloaded and verified snapshot. Or from GitHub **Actions** manually run **v0.4 research cost and strategy comparison (manual only)**. Its `v04-research-comparison` artifact provides all twelve scenarios, costs, trades, risk metrics, audit-style rejections and descriptive holdout. The default CI remains network-free.
+
+This is **not** a validated performance evaluation: unadjusted price-only OHLC data omit distributions and corporate actions, and the holdout has not been evaluated with a proper walk-forward design. See [docs/V0_4_RESEARCH.md](docs/V0_4_RESEARCH.md).

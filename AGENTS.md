@@ -31,3 +31,8 @@ This is a software-development repository, NOT a broker execution channel.
 - Hash and validate local snapshots before simulating; fail on unavailable or non-EUR price feeds.
 - Do not treat dividend-ignorant/raw OHLC strategies as research-grade alpha; benchmark and full cost modeling must be reviewed before any brokerage integration.
 - Do not let LLMs expand the allowlist or invoke a broker.
+
+## v0.4 research guardrails
+- `src/ai_trading_fleet/research_lab.py` and `fleet compare-research` run offline-only scenario analysis; no broker/client, LLM tool calls or account credentials.
+- Do not loosen `RiskPolicy` to force profitable-looking results. Mark alternative commissions and fractional shares hypothetical and require real broker checks before any paper brokerage wiring.
+- Do not claim a descriptive holdout is independent validation or select best 2025 holdout then reuse it as evidence.

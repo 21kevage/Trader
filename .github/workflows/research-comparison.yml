@@ -1,0 +1,47 @@
+name: v0.4 research cost and strategy comparison (manual only)
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Historical start date (YYYY-MM-DD)"
+        required: true
+        default: "2022-01-01"
+      end_date:
+        description: "Exclusive end date (YYYY-MM-DD)"
+        required: true
+        default: "2026-10-17"
+      holdout_start:
+        description: "Descriptive holdout start date (YYYY-MM-DD)"
+        required: true
+        default: "2025-01-01"
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install research-only dependencies
+        run: python -m pip install -e '.[market-data]'
+      - name: Download historical OHLC (only on explicit manual action)
+        env:
+          HIST_START: ${{ inputs.start_date }}
+          HIST_END: ${{ inputs.end_date }}
+        run: |
+          fleet download-history --start "$HIST_START" --end "$HIST_END" --out-dir datasets/runner
+      - name: Compare fixed strategies and cost sensitivities without broker
+        env:
+          HOLDOUT: ${{ inputs.holdout_start }}
+        run: |
+          fleet compare-research --csv datasets/runner/prices.csv --manifest datasets/runner/manifest.json --holdout-start "$HOLDOUT" --out output/research-v04.json
+      - name: Upload report only, not raw licensed market history
+        uses: actions/upload-artifact@v4
+        with:
+          name: v04-research-comparison
+          path: output/research-v04.json
+          retention-days: 7
+          if-no-files-found: error
