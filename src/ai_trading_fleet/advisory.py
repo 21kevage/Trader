@@ -23,7 +23,7 @@ def validate_research_note(payload: object, *, asof: date,
     symbol = payload['symbol']
     if not isinstance(symbol, str) or symbol not in allowed_symbols:
         raise ValueError('Unapproved research symbol')
-    if payload['stance'] not in ALLOWED_STANCES:
+    if not isinstance(payload['stance'], str) or payload['stance'] not in ALLOWED_STANCES:
         raise ValueError('Invalid research stance')
     c = payload['confidence']
     if type(c) not in (int, float) or not isfinite(c) or not 0 <= c <= 1:

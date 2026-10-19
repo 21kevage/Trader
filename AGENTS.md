@@ -42,3 +42,8 @@ This is a software-development repository, NOT a broker execution channel.
 - Ex-date cash dividends may be counted only for prior holdings; fail closed for split actions and unverified provenance. Never substitute adjusted synthetic OHLC for broker fills.
 - Research advice JSON must remain non-actionable: no API key handling, LLM calls, trade tool or order instructions. Validate exact schemas and timestamp bounds.
 - Never treat a zero-fee or fractional-share sensitivity analysis as a verified broker capability.
+
+## v0.6 boundaries
+- Rolling window reports are independent capital resets, never compounded performance. Historical windows are already contaminated by researcher exposure; no out-of-sample profitability claims.
+- `research-ai` is local opt-in only; requires paid API confirmation, OPENAI_API_KEY only from local environment, no CI model calls. Inert AI notes must never reach strategy selector, broker, risk settings, scheduler, or order engine.
+- NO broker, no paper broker, no live funds. Keep all research outputs in gitignored `output/` and snapshots in `datasets/`.
