@@ -41,6 +41,16 @@ def main(argv: list[str] | None = None):
     research.add_argument("--manifest", required=True, type=Path)
     research.add_argument("--out", type=Path, default=Path("output/research-v04.json"))
     research.add_argument("--holdout-start", type=date.fromisoformat)
+    forward = sub.add_parser("forward-research", help="v0.5 train-only model selection then isolated forward simulation")
+    forward.add_argument("--csv", required=True, type=Path)
+    forward.add_argument("--manifest", required=True, type=Path)
+    forward.add_argument("--split", required=True, type=date.fromisoformat)
+    forward.add_argument("--cost", required=True, choices=["fixed_1_25_whole", "hypothetical_0_25_whole",
+                    "hypothetical_0_25_fractional", "zero_fee_fractional_sensitivity_ONLY"])
+    forward.add_argument("--out", type=Path, default=Path("output/forward-v05.json"))
+    advice = sub.add_parser("validate-advice", help="Offline-only schema validation of non-actionable research notes")
+    advice.add_argument("--file", required=True, type=Path)
+    advice.add_argument("--asof", required=True, type=date.fromisoformat)
     args = parser.parse_args(argv)
 
     if args.command == "run-demo":
@@ -59,6 +69,22 @@ def main(argv: list[str] | None = None):
         report["snapshot_sha256"] = manifest["sha256"]
         report["data_source"] = manifest["source"]
         _write_report(report, args.out)
+    elif args.command == "forward-research":
+        from .marketdata import read_snapshot
+        from .forward_research import compare_forward
+        dataset, manifest = read_snapshot(args.csv, args.manifest)
+        report = compare_forward(dataset, split=args.split, selected_cost=args.cost)
+        report["snapshot_sha256"] = manifest["sha256"]
+        report["snapshot_schema"] = manifest["schema_version"]
+        report["data_source"] = manifest["source"]
+        report["dividend_events"] = manifest.get("dividend_events", {})
+        _write_report(report, args.out)
+    elif args.command == "validate-advice":
+        from .advisory import validate_research_note
+        from .marketdata import RESEARCH_UNIVERSE
+        note = json.loads(args.file.read_text(encoding="utf-8"))
+        print(json.dumps(validate_research_note(note, asof=args.asof,
+              allowed_symbols=frozenset(RESEARCH_UNIVERSE)), ensure_ascii=False, indent=2))
     elif args.command == "backtest":
         from .marketdata import RESEARCH_UNIVERSE, read_snapshot
         from .evaluation import buy_and_hold, capped_buy_and_hold, summarize_holdout

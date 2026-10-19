@@ -36,3 +36,9 @@ This is a software-development repository, NOT a broker execution channel.
 - `src/ai_trading_fleet/research_lab.py` and `fleet compare-research` run offline-only scenario analysis; no broker/client, LLM tool calls or account credentials.
 - Do not loosen `RiskPolicy` to force profitable-looking results. Mark alternative commissions and fractional shares hypothetical and require real broker checks before any paper brokerage wiring.
 - Do not claim a descriptive holdout is independent validation or select best 2025 holdout then reuse it as evidence.
+
+## v0.5 new constraints
+- Training strategy selection must depend on pre-split data only; never advertise the already-examined 2025+ dates as independent out-of-sample validation.
+- Ex-date cash dividends may be counted only for prior holdings; fail closed for split actions and unverified provenance. Never substitute adjusted synthetic OHLC for broker fills.
+- Research advice JSON must remain non-actionable: no API key handling, LLM calls, trade tool or order instructions. Validate exact schemas and timestamp bounds.
+- Never treat a zero-fee or fractional-share sensitivity analysis as a verified broker capability.

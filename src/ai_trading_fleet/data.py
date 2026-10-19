@@ -18,10 +18,13 @@ def load_csv(path: str | Path, allowed: set[str], *, allow_zero_volume: bool = F
                 open=float(row["open"]), high=float(row["high"]),
                 low=float(row["low"]), close=float(row["close"]),
                 volume=int(row["volume"]), spread_bps=float(row.get("spread_bps", 15)),
+                dividend=float(row.get("dividend", 0) or 0),
             )
             if (any(not isfinite(v) or v <= 0 for v in (bar.open, bar.high, bar.low, bar.close))
                 or bar.volume < 0 or (bar.volume == 0 and not allow_zero_volume)):
-                raise ValueError("Invalid price or volume")
+                raise ValueError("Invalid zero/negative/nonfinite price or volume")
+            if not isfinite(bar.dividend) or bar.dividend < 0:
+                raise ValueError("Invalid dividend")
             if not isfinite(bar.spread_bps) or bar.spread_bps < 0:
                 raise ValueError("Invalid spread")
             if not bar.low <= min(bar.open, bar.close) <= max(bar.open, bar.close) <= bar.high:

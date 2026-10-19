@@ -1,0 +1,58 @@
+name: v0.5 chronological research (manual only)
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'Historical first date YYYY-MM-DD'
+        required: true
+        default: '2022-01-01'
+      end_date:
+        description: 'Exclusive end date YYYY-MM-DD'
+        required: true
+        default: '2026-10-17'
+      forward_start:
+        description: 'Train prior to this date; evaluate from this date (NOT genuinely unseen)'
+        required: true
+        default: '2025-01-01'
+      fee_scenario:
+        description: 'Research fee model; discounted and fractional cases are hypothetical'
+        required: true
+        type: choice
+        default: 'fixed_1_25_whole'
+        options:
+          - fixed_1_25_whole
+          - hypothetical_0_25_whole
+          - hypothetical_0_25_fractional
+          - zero_fee_fractional_sensitivity_ONLY
+permissions:
+  contents: read
+jobs:
+  forward-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install research-only dependencies
+        run: python -m pip install -e '.[market-data]'
+      - name: Download price and corporate action research data (explicit manual action)
+        env:
+          HIST_START: ${{ inputs.start_date }}
+          HIST_END: ${{ inputs.end_date }}
+        run: |
+          fleet download-history --start "$HIST_START" --end "$HIST_END" --out-dir datasets/runner
+      - name: Train-only strategy selection, isolated later-period evaluation
+        env:
+          SPLIT: ${{ inputs.forward_start }}
+          COST: ${{ inputs.fee_scenario }}
+        run: |
+          fleet forward-research --csv datasets/runner/prices.csv --manifest datasets/runner/manifest.json --split "$SPLIT" --cost "$COST" --out output/forward-v05.json
+      - name: Upload JSON summary only (no raw vendor prices)
+        uses: actions/upload-artifact@v4
+        with:
+          name: v05-chronological-research-report
+          path: output/forward-v05.json
+          retention-days: 7
+          if-no-files-found: error

@@ -12,6 +12,7 @@ class Bar:
     close: float
     volume: int
     spread_bps: float = 15.0
+    dividend: float = 0.0  # EUR per share, ex-date cash entitlement; not pay-date accounting
 
 @dataclass(frozen=True)
 class Proposal:

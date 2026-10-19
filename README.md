@@ -1,4 +1,4 @@
-# AI Trading Fleet · MVP v0.4
+# AI Trading Fleet · MVP v0.5
 
 An offline, **offline-only** research prototype with synthetic demo and opt-in historical research data for a future multi-agent trading system inspired by Firstmate's crew-supervision principle.
 
@@ -112,3 +112,20 @@ Run the existing manual `Historical research backtest` GitHub Action to see chan
 Run `fleet compare-research --csv datasets/research/prices.csv --manifest datasets/research/manifest.json --holdout-start 2025-01-01 --out output/research-v04.json` on a previously downloaded and verified snapshot. Or from GitHub **Actions** manually run **v0.4 research cost and strategy comparison (manual only)**. Its `v04-research-comparison` artifact provides all twelve scenarios, costs, trades, risk metrics, audit-style rejections and descriptive holdout. The default CI remains network-free.
 
 This is **not** a validated performance evaluation: unadjusted price-only OHLC data omit distributions and corporate actions, and the holdout has not been evaluated with a proper walk-forward design. See [docs/V0_4_RESEARCH.md](docs/V0_4_RESEARCH.md).
+
+## v0.5 – Historical dividend events, chronological strategy selection and inert AI interface
+
+> Offline research only: no live broker, no order API, no paid AI model, no actual investment.
+
+v0.5 adds dividend event columns to new immutable research snapshots (`schema_version=2`), while reading legacy v1 snapshots without treating the entire history as if future dividends were known. Reported split actions are rejected pending human reconciliation. Ex-date cash dividends are approximated for **already held** ETF shares and compared in passive benchmarks; taxes and payment delays are not modeled. The two currently researched ETFs are accumulating share classes, so we expect no ordinary cash-dividend events for them.
+
+The new `fleet forward-research` command chooses one of the three strategies from strictly earlier data (or CASH) under one *preselected* fee schedule, then tests only that choice in the later interval with a new EUR 1,000 virtual portfolio. A descriptive chronological split is **not** a genuine unseen independent forward test, especially since these dates have already been examined during v0.2–v0.4. See `docs/V0_5_RESEARCH.md`.
+
+```bash
+fleet download-history --start 2022-01-01 --end 2026-10-17 --out-dir datasets/new-v05
+fleet forward-research --csv datasets/new-v05/prices.csv --manifest datasets/new-v05/manifest.json --split 2025-01-01 --cost fixed_1_25_whole --out output/forward-v05.json
+```
+
+Alternatively, manually start **v0.5 chronological research (manual only)** under GitHub Actions. Discounted-commission, fractional-share, and zero-commission models remain hypothetical until actual broker offerings are verified.
+
+`fleet validate-advice --file note.json --asof 2025-06-02` checks the schema of future untrusted AI commentary but cannot execute or propose executable orders. There is still **no LLM or model API integrated**.
