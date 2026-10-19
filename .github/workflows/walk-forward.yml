@@ -1,0 +1,66 @@
+name: v0.6 rolling walk-forward research (manual only)
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'Historical start date (inclusive)'
+        required: true
+        default: '2022-01-01'
+      end_date:
+        description: 'Exclusive end date, cannot be future'
+        required: true
+        default: '2026-10-17'
+      cost_scenario:
+        description: 'Hypothetical research costs only; not a real broker offer'
+        required: true
+        type: choice
+        default: hypothetical_0_25_fractional
+        options:
+          - fixed_1_25_whole
+          - hypothetical_0_25_whole
+          - hypothetical_0_25_fractional
+          - zero_fee_fractional_sensitivity_ONLY
+      training_sessions:
+        description: 'Rolling prior sessions used only for selection (minimum 120)'
+        required: true
+        type: choice
+        default: '252'
+        options: ['252', '378', '504']
+      evaluation_sessions:
+        description: 'Nonoverlapping following sessions per test (minimum 40)'
+        required: true
+        type: choice
+        default: '63'
+        options: ['63', '126']
+permissions:
+  contents: read
+jobs:
+  offline-rolling-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install research data dependencies (NO LLM OR BROKER)
+        run: python -m pip install -e '.[market-data]'
+      - name: Download historical prices (only because user manually started this workflow)
+        env:
+          START: ${{ inputs.start_date }}
+          END: ${{ inputs.end_date }}
+        run: fleet download-history --start "$START" --end "$END" --out-dir datasets/runner
+      - name: Offline rolling walk-forward
+        env:
+          COST: ${{ inputs.cost_scenario }}
+          TRAIN: ${{ inputs.training_sessions }}
+          EVAL: ${{ inputs.evaluation_sessions }}
+        run: |
+          fleet walk-forward --csv datasets/runner/prices.csv --manifest datasets/runner/manifest.json --cost "$COST" --train-sessions "$TRAIN" --test-sessions "$EVAL" --out output/walk-forward-v06.json
+      - name: Upload compact report, never raw data
+        uses: actions/upload-artifact@v4
+        with:
+          name: v06-walk-forward-report
+          path: output/walk-forward-v06.json
+          retention-days: 7
+          if-no-files-found: error

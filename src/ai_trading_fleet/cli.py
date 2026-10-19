@@ -12,6 +12,9 @@ def _write_report(report: dict, out: Path):
     out.parent.mkdir(exist_ok=True, parents=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     summary = {k: v for k, v in report.items() if k not in {"curve", "fills", "audits"}}
+    if "windows" in summary:
+        summary["windows"] = [{"number": w["number"], "selected": w["selected_from_training_only"],
+                                "evaluation": w["evaluation"]} for w in summary["windows"]]
     if "runs" in summary:
         summary["runs"] = [{k: v for k, v in run.items() if k not in {"curve", "fills"}}
                            for run in summary["runs"]]
@@ -48,6 +51,22 @@ def main(argv: list[str] | None = None):
     forward.add_argument("--cost", required=True, choices=["fixed_1_25_whole", "hypothetical_0_25_whole",
                     "hypothetical_0_25_fractional", "zero_fee_fractional_sensitivity_ONLY"])
     forward.add_argument("--out", type=Path, default=Path("output/forward-v05.json"))
+    walk = sub.add_parser("walk-forward", help="v0.6 rolling train-only selection and nonoverlapping forward windows")
+    walk.add_argument("--csv", required=True, type=Path)
+    walk.add_argument("--manifest", required=True, type=Path)
+    walk.add_argument("--cost", required=True, choices=["fixed_1_25_whole", "hypothetical_0_25_whole",
+                      "hypothetical_0_25_fractional", "zero_fee_fractional_sensitivity_ONLY"])
+    walk.add_argument("--train-sessions", type=int, default=252)
+    walk.add_argument("--test-sessions", type=int, default=63)
+    walk.add_argument("--out", type=Path, default=Path("output/walk-forward-v06.json"))
+    research_ai = sub.add_parser("research-ai", help="Explicit paid, read-only AI research note (NO BROKER)")
+    research_ai.add_argument("--csv", required=True, type=Path)
+    research_ai.add_argument("--manifest", required=True, type=Path)
+    research_ai.add_argument("--symbol", required=True)
+    research_ai.add_argument("--asof", required=True, type=date.fromisoformat)
+    research_ai.add_argument("--model", default="gpt-4o-mini")
+    research_ai.add_argument("--confirm-paid-api", action="store_true", required=False)
+    research_ai.add_argument("--out", type=Path, default=Path("output/ai-research-note.json"))
     advice = sub.add_parser("validate-advice", help="Offline-only schema validation of non-actionable research notes")
     advice.add_argument("--file", required=True, type=Path)
     advice.add_argument("--asof", required=True, type=date.fromisoformat)
@@ -78,6 +97,27 @@ def main(argv: list[str] | None = None):
         report["snapshot_schema"] = manifest["schema_version"]
         report["data_source"] = manifest["source"]
         report["dividend_events"] = manifest.get("dividend_events", {})
+        _write_report(report, args.out)
+    elif args.command == "walk-forward":
+        from .marketdata import read_snapshot
+        from .walk_forward import walk_forward
+        dataset, manifest = read_snapshot(args.csv, args.manifest)
+        report = walk_forward(dataset, cost=args.cost,
+                              training_sessions=args.train_sessions,
+                              evaluation_sessions=args.test_sessions)
+        report["snapshot_sha256"] = manifest["sha256"]
+        report["data_source"] = manifest["source"]
+        report["snapshot_schema"] = manifest["schema_version"]
+        _write_report(report, args.out)
+    elif args.command == "research-ai":
+        from .marketdata import read_snapshot
+        from .ai_research import request_research_note
+        if not args.confirm_paid_api:
+            parser.error("Explicit --confirm-paid-api required; this API call may cost money")
+        dataset, manifest = read_snapshot(args.csv, args.manifest)
+        report = request_research_note(dataset, symbol=args.symbol, asof=args.asof,
+                                       model=args.model, confirm_paid_api=True)
+        report["snapshot_sha256"] = manifest["sha256"]
         _write_report(report, args.out)
     elif args.command == "validate-advice":
         from .advisory import validate_research_note

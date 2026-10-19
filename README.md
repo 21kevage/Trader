@@ -129,3 +129,10 @@ fleet forward-research --csv datasets/new-v05/prices.csv --manifest datasets/new
 Alternatively, manually start **v0.5 chronological research (manual only)** under GitHub Actions. Discounted-commission, fractional-share, and zero-commission models remain hypothetical until actual broker offerings are verified.
 
 `fleet validate-advice --file note.json --asof 2025-06-02` checks the schema of future untrusted AI commentary but cannot execute or propose executable orders. There is still **no LLM or model API integrated**.
+
+## v0.6 – Rolling windows + real AI read-only commentary (manual/optional)
+
+- **New GitHub Action:** [v0.6 rolling walk-forward research](.github/workflows/walk-forward.yml). Manually download verified historical OHLC and run 252-trading-session trailing training windows with the next nonoverlapping 63-session evaluation periods. Scores are chosen only on training bars. No model calls or broker code run in this Action.
+- **Per-window EUR 1,000 portfolio resets**, NOT a continuous compounded return. Each window reports chosen strategy or CASH, loss/drawdown, fees, executions and a passive ETF benchmark with different stop-risk assumptions. This is **not** independent unseen validation because our project already examined these historical years.
+- **Optional actual AI research commentary:** `fleet research-ai --csv ... --manifest ... --symbol EUNL.DE --asof 2026-10-16 --model gpt-4o-mini --confirm-paid-api --out output/ai-research-note.json`. Requires `pip install -e '.[ai-research]'` and a locally configured `OPENAI_API_KEY`. This makes one bounded, **paid** OpenAI Responses API request for strict, non-actionable market commentary; no tool calling, policy override, order submission, or autonomous model loop. CI and GitHub Actions never invoke it.
+- Exact commands, boundaries, known deficiencies and broker-paper requirements: [docs/V0_6_RESEARCH.md](docs/V0_6_RESEARCH.md).

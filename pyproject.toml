@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-trading-fleet"
-version = "0.5.0"
+version = "0.6.0"
 description = "Offline, fail-closed trading research and scenario comparison MVP"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,6 +13,7 @@ dependencies = []
 [project.optional-dependencies]
 market-data = ["yfinance>=0.2.66,<2"]
 web = ["fastapi>=0.110,<1", "uvicorn>=0.27,<1"]
+ai-research = ["openai>=2,<4"]
 
 [project.scripts]
 fleet = "ai_trading_fleet.cli:main"

@@ -39,3 +39,8 @@
 6. TradingAgents advisor adapter, advisory-only (P1)
 7. IBKR paper connector + reconciliation testnet (P1)
 8. Mobile authenticated read-only UI (P2)
+
+## v0.6 implementation
+- Implemented rolling, nonoverlapping per-window research with trailing-only training and independent capital reset, passive comparison and explicitly non-compounded summaries.
+- An optional paid API OpenAI research-only note command exists; its output is strictly schema checked and has no trading execution integration. It is never run in CI or any GitHub Action.
+- Important next tasks: verify real broker price schedule and eligible fractional orders, validate truly new data, independent statistics, better adjusted/point-in-time prices, and long-lived paper-broker operational safety tests.
