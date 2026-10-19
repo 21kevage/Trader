@@ -67,6 +67,15 @@ def main(argv: list[str] | None = None):
     research_ai.add_argument("--model", default="gpt-4o-mini")
     research_ai.add_argument("--confirm-paid-api", action="store_true", required=False)
     research_ai.add_argument("--out", type=Path, default=Path("output/ai-research-note.json"))
+    shadow = sub.add_parser("shadow-demo", help="v0.7 MOCK-only shadow notes and mobile HTML; no paid AI")
+    shadow.add_argument("--csv", required=True, type=Path)
+    shadow.add_argument("--manifest", required=True, type=Path)
+    shadow.add_argument("--last-sessions", type=int, default=10)
+    shadow.add_argument("--step-sessions", type=int, default=5)
+    shadow.add_argument("--horizon-sessions", type=int, default=5)
+    shadow.add_argument("--out", type=Path, default=Path("output/shadow-v07.json"))
+    shadow.add_argument("--html", type=Path, default=Path("output/shadow-v07.html"))
+    shadow.add_argument("--summary", type=Path, help="Optional GitHub Actions step summary path")
     advice = sub.add_parser("validate-advice", help="Offline-only schema validation of non-actionable research notes")
     advice.add_argument("--file", required=True, type=Path)
     advice.add_argument("--asof", required=True, type=date.fromisoformat)
@@ -109,6 +118,22 @@ def main(argv: list[str] | None = None):
         report["data_source"] = manifest["source"]
         report["snapshot_schema"] = manifest["schema_version"]
         _write_report(report, args.out)
+    elif args.command == "shadow-demo":
+        from .marketdata import read_snapshot
+        from .shadow_research import shadow_preview, render_mobile_html, render_github_summary
+        dataset, manifest = read_snapshot(args.csv, args.manifest)
+        report = shadow_preview(dataset, last_sessions=args.last_sessions,
+                                step_sessions=args.step_sessions,
+                                horizon_sessions=args.horizon_sessions)
+        report["snapshot_sha256"] = manifest["sha256"]
+        report["data_source"] = manifest["source"]
+        _write_report(report, args.out)
+        args.html.parent.mkdir(parents=True, exist_ok=True)
+        args.html.write_text(render_mobile_html(report), encoding="utf-8")
+        if args.summary is not None:
+            args.summary.parent.mkdir(parents=True, exist_ok=True)
+            args.summary.write_text(render_github_summary(report), encoding="utf-8")
+        print(f"Offline mock-only HTML dashboard: {args.html}")
     elif args.command == "research-ai":
         from .marketdata import read_snapshot
         from .ai_research import request_research_note

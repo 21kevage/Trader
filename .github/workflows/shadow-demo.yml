@@ -1,0 +1,45 @@
+name: v0.7 MOCK AI shadow dashboard (manual only)
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'Research price history first date, inclusive'
+        required: true
+        default: '2025-01-01'
+      end_date:
+        description: 'Exclusive end date; use only completed trading sessions'
+        required: true
+        default: '2026-10-17'
+permissions:
+  contents: read
+jobs:
+  shadow-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install research-only dependencies; NO LLM SDK OR KEY
+        run: python -m pip install -e '.[market-data]'
+      - name: Download Yahoo research prices only on explicit manual dispatch
+        env:
+          START: ${{ inputs.start_date }}
+          END: ${{ inputs.end_date }}
+        run: fleet download-history --start "$START" --end "$END" --out-dir datasets/runner
+      - name: Run deterministic MOCK shadow research; no order execution
+        run: |
+          fleet shadow-demo --csv datasets/runner/prices.csv --manifest datasets/runner/manifest.json \
+            --last-sessions 10 --step-sessions 5 --horizon-sessions 5 \
+            --out output/v07-shadow.json --html output/v07-shadow.html \
+            --summary "$GITHUB_STEP_SUMMARY"
+      - name: Upload ONLY generated JSON and standalone HTML, never raw prices
+        uses: actions/upload-artifact@v4
+        with:
+          name: v07-shadow-report
+          path: |
+            output/v07-shadow.json
+            output/v07-shadow.html
+          if-no-files-found: error
+          retention-days: 7
