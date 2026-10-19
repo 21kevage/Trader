@@ -15,9 +15,11 @@ def buy_and_hold(data: dict[date, dict[str, Bar]], symbol: str,
         raise ValueError("No tradable session with reported volume for buy-and-hold")
     qty = int(max(0, (capital - fee) // execution.open))
     invested = qty * execution.open + (fee if qty else 0)
-    ending = capital - invested + qty * bars[-1].close
+    dividend_cash = qty * sum(bar.dividend for bar in bars if bar.date > execution.date)
+    ending = capital - invested + qty * bars[-1].close + dividend_cash
     return {"symbol": symbol, "basis": "next-session-open buy-and-hold, price-only",
-            "quantity": qty, "final_equity": round(ending, 2),
+            "quantity": qty, "dividends_credited_eur": round(dividend_cash, 2),
+            "final_equity": round(ending, 2),
             "return_pct": round((ending / capital - 1) * 100, 3)}
 
 
@@ -56,9 +58,11 @@ def capped_buy_and_hold(data: dict[date, dict[str, Bar]], symbol: str,
     budget = min(capital * allocation_fraction, capital)
     qty = max(0, floor((budget - fee) / effective_open))
     entry_cost = qty * effective_open + (fee if qty else 0)
-    final_equity = capital - entry_cost + qty * bars[-1].close
+    dividend_cash = qty * sum(bar.dividend for bar in bars if bar.date > execution.date)
+    final_equity = capital - entry_cost + qty * bars[-1].close + dividend_cash
     return {"symbol": symbol, "basis": "initial allocation cap, entry costs, no stop or dividends",
             "allocation_cap_pct": allocation_fraction * 100, "quantity": qty,
             "initial_cash_uninvested": round(capital - entry_cost, 2),
+            "dividends_credited_eur": round(dividend_cash, 2),
             "final_equity": round(final_equity, 2),
             "return_pct": round(100 * (final_equity / capital - 1), 3)}

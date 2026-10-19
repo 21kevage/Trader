@@ -83,6 +83,8 @@ def _valid_daily(data: dict[date, dict[str, Bar]]) -> tuple[list[date], tuple[st
             if b.date != day or b.symbol != sym or (not all(isfinite(x) and x > 0 for x in
                     (b.open, b.high, b.low, b.close))) or b.volume < 0:
                 raise ValueError("Invalid research bar")
+            if not isfinite(b.dividend) or b.dividend < 0:
+                raise ValueError("Invalid dividend event")
             if b.low > min(b.open, b.close) or b.high < max(b.open, b.close):
                 raise ValueError("Invalid research OHLC ordering")
     return days, symbols
@@ -111,7 +113,8 @@ def _signal(strategy: Strategy, closes: list[float], month_open: bool) -> tuple[
 def run_scenario(data: dict[date, dict[str, Bar]], *, strategy: Strategy,
                  costs: FeeScenario, capital: float = 1000.0,
                  holdout_start: date | None = None,
-                 policy: RiskPolicy | None = None) -> dict:
+                 policy: RiskPolicy | None = None,
+                 trade_start: date | None = None) -> dict:
     if strategy not in STRATEGIES:
         raise ValueError("Unknown strategy")
     if not isfinite(capital) or capital <= 0:
@@ -124,6 +127,11 @@ def run_scenario(data: dict[date, dict[str, Bar]], *, strategy: Strategy,
         raise ValueError("Research universe restricted to at most three assets")
     if holdout_start is not None and not days[60] < holdout_start < days[-1]:
         raise ValueError("Holdout outside study interval")
+    if trade_start is not None:
+        if holdout_start is not None:
+            raise ValueError("Separate forward test cannot request descriptive holdout")
+        if not days[60] <= trade_start <= days[-30]:
+            raise ValueError("Forward trading needs 60 warm-up sessions and 30 evaluation sessions")
     cash = capital
     holdings: dict[str, _Holding] = {}
     histories: dict[str, list[float]] = defaultdict(list)
@@ -133,6 +141,7 @@ def run_scenario(data: dict[date, dict[str, Bar]], *, strategy: Strategy,
     fills: list[dict] = []
     rejected: Counter[str] = Counter()
     fee_total = 0.0
+    dividends_credited = 0.0
     previous_equity = capital
     peak = capital
     max_dd = 0.0
@@ -146,6 +155,22 @@ def run_scenario(data: dict[date, dict[str, Bar]], *, strategy: Strategy,
 
     for day in days:
         daily = data[day]
+        # The chronological test may read prior closes to warm indicators,
+        # but must never trade, earn dividends, or change cash before trade_start.
+        if trade_start is not None and day < trade_start:
+            for symbol, bar in daily.items():
+                histories[symbol].append(bar.close)
+                last_known[symbol] = bar.close
+            prev_month = (day.year, day.month)
+            continue
+        # Entitlement belongs to shares owned before ex-date session OPEN.
+        # Payment is credited on ex-date as an explicit research approximation.
+        for symbol, position in holdings.items():
+            bar = daily.get(symbol)
+            if bar is not None and bar.dividend:
+                credited = position.qty * bar.dividend
+                cash += credited
+                dividends_credited += credited
         open_marks = dict(last_known)
         open_marks.update({s: b.open for s, b in daily.items()})
         day_start = previous_equity
@@ -281,6 +306,8 @@ def run_scenario(data: dict[date, dict[str, Bar]], *, strategy: Strategy,
                 continue
             open_orders.append(_Order(day, symbol, "BUY", qty, "strategy_entry"))
 
+    if not curve:
+        raise ValueError("Empty active trading period")
     final_equity = curve[-1]["equity"]
     holdout = None
     if holdout_start:
@@ -296,7 +323,9 @@ def run_scenario(data: dict[date, dict[str, Bar]], *, strategy: Strategy,
         "not_a_broker_price_schedule": True, "initial_equity": capital,
         "final_equity": round(final_equity, 2), "return_pct": round(100 * (final_equity / capital - 1), 3),
         "max_drawdown_pct": round(100 * max_dd, 3),
-        "average_gross_exposure_pct": round(100 * exposure_sum / len(days), 2),
+        "average_gross_exposure_pct": round(100 * exposure_sum / len(curve), 2),
+        "dividends_credited_eur": round(dividends_credited, 2),
+        "trade_start": trade_start.isoformat() if trade_start else None,
         "fees_paid_eur": round(fee_total, 2), "executions": len(fills),
         "round_trips_closed": sum(f["side"] == "SELL" for f in fills),
         "zero_trade_diagnostic": "No transactions met all gates" if not fills else None,
@@ -326,7 +355,7 @@ def compare(data: dict[date, dict[str, Bar]], *, capital: float = 1000.0,
     return {"version": "0.4-research", "mode": "OFFLINE_HISTORICAL_RESEARCH_ONLY",
             "not_investment_advice": True,
             "period": {"first_bar": dates[0].isoformat(), "last_bar": dates[-1].isoformat()},
-            "limitations": ["unadjusted price-only bars (no dividends/corporate actions)",
+            "limitations": ["raw OHLC with ex-date dividends if supplied; settlement dates, taxes and reported stock splits not modeled",
                             "assumed spread and slippage, not actual executable quotes",
                             "fractional ETF trading scenarios are hypothetical; broker support unverified",
                             "no taxes, borrow costs, interest, impact, partial fills or intraday stop fills",
